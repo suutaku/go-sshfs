@@ -52,15 +52,15 @@ var _ fs.FS = (*SSHFS)(nil)
 func NewSSHFSWithConn(conn net.Conn, conf ssh.ClientConfig, root, mountPoint string) *SSHFS {
 	c, chans, reqs, err := ssh.NewClientConn(conn, "", &conf)
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	client := ssh.NewClient(c, chans, reqs)
 	if client == nil {
-		panic("cannot create ssh client")
+		return nil
 	}
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
-		panic("cannot create sftp client")
+		return nil
 	}
 	return &SSHFS{
 		Client:     sftpClient,
