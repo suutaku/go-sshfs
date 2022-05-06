@@ -3,9 +3,9 @@ module github.com/suutaku/go-sshfs
 go 1.17
 
 require (
-	bazil.org/fuse v0.0.0-20200117225306-7b5117fecadc
 	github.com/docker/go-plugins-helpers v0.0.0-20211224144127-6eecb7beb651
 	github.com/getlantern/errors v1.0.1
+	github.com/hanwen/go-fuse/v2 v2.1.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/sftp v1.13.4
 	github.com/rifflock/lfshook v0.0.0-20180920164130-b9218ef580f5
