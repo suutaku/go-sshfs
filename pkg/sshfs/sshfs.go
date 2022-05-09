@@ -1,6 +1,8 @@
 package sshfs
 
 import (
+	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
@@ -35,7 +37,19 @@ func (sshfs *Sshfs) Mount(opts *fs.Options) error {
 	opts.AttrTimeout = &sec
 	opts.EntryTimeout = &sec
 	opts.MountOptions.Options = append(opts.MountOptions.Options, "rw")
-	opts.MountOptions.Options = append(opts.MountOptions.Options, "volname="+sshfs.displayName)
+	os := runtime.GOOS
+	switch os {
+	case "windows":
+		fmt.Println("Windows")
+	case "darwin":
+		opts.MountOptions.Options = append(opts.MountOptions.Options, "volname="+sshfs.displayName)
+	case "linux":
+		opts.Name = sshfs.displayName
+		opts.MountOptions.FsName = "ssh"
+	default:
+		fmt.Printf("%s.\n", os)
+	}
+
 	root := NewSFNode(sshfs.sftp, sshfs.rootPath)
 	logrus.Debug("mount")
 	server, err := fs.Mount(sshfs.mountPoint, root, opts)
