@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
+	"github.com/hanwen/go-fuse/v2/fuse"
 	"github.com/pkg/sftp"
 	"github.com/sirupsen/logrus"
 )
@@ -13,6 +14,7 @@ type Sshfs struct {
 	rootPath    string // remote path
 	mountPoint  string // local mount point
 	displayName string
+	server      *fuse.Server
 }
 
 func NewSshfs(sftp *sftp.Client, root, mountPoint, name string) *Sshfs {
@@ -40,10 +42,14 @@ func (sshfs *Sshfs) Mount(opts *fs.Options) error {
 	if err != nil {
 		return err
 	}
+	sshfs.server = server
 	logrus.Debug("serve")
 	server.Wait()
-	return nil
+	return err
 }
-func (sssnhfs *Sshfs) Unmount() error {
+func (sshfs *Sshfs) Unmount() error {
+	if sshfs.server != nil {
+		sshfs.server.Unmount()
+	}
 	return nil
 }
