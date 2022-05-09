@@ -50,7 +50,6 @@ func (sn *SFNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOu
 		out.Mode = uint32(stat.Mode())
 		out.Mtime = uint64(stat.ModTime().Unix())
 		out.Ctime = uint64(stat.ModTime().Unix())
-		out.Crtime_ = uint64(stat.ModTime().Unix())
 		out.Size = uint64(stat.Size())
 		// 正常な場合はfuse.OKを返す
 		return fs.ToErrno(nil)
@@ -67,7 +66,7 @@ func (sn *SFNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOu
 	out.Mode = uint32(stat.Mode())
 	out.Mtime = uint64(stat.ModTime().Unix())
 	out.Ctime = uint64(stat.ModTime().Unix())
-	out.Crtime_ = uint64(stat.ModTime().Unix())
+
 	out.Size = uint64(stat.Size())
 	// 正常な場合はfuse.OKを返す
 	return fs.ToErrno(nil)
@@ -123,7 +122,7 @@ func (sn *SFNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (
 	out.Attr.Mode = uint32(f.Mode())
 	out.Attr.Mtime = uint64(f.ModTime().Unix())
 	out.Attr.Ctime = uint64(f.ModTime().Unix())
-	out.Attr.Crtime_ = uint64(f.ModTime().Unix())
+
 	out.Attr.Size = uint64(f.Size())
 	stable := fs.StableAttr{Mode: fuse.S_IFDIR}
 	if !f.IsDir() {
@@ -246,7 +245,6 @@ func (sn *SFNode) Create(ctx context.Context, name string, flags uint32, mode ui
 	out.Attr.Mode = uint32(stat.Mode())
 	out.Attr.Mtime = uint64(stat.ModTime().Unix())
 	out.Attr.Ctime = uint64(stat.ModTime().Unix())
-	out.Attr.Crtime_ = uint64(stat.ModTime().Unix())
 	out.Attr.Size = uint64(stat.Size())
 	stable := fs.StableAttr{Mode: fuse.S_IFDIR}
 	if !stat.IsDir() {
@@ -339,11 +337,9 @@ func (sn *SFNode) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttr
 
 	out.Attr.Atime = in.Atime
 	out.Attr.Atimensec = in.Atimensec
-	out.Attr.Crtime_ = in.Crtime
-	out.Attr.Crtimensec_ = in.Ctimensec
+
 	out.Attr.Ctime = in.Ctime
 	out.Attr.Ctimensec = in.Ctimensec
-	out.Attr.Flags_ = in.Flags_
 	if f != nil {
 		file := f.(*sftp.File)
 		file.Chmod(iofs.FileMode(in.Mode))
