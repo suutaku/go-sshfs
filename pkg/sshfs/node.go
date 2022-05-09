@@ -51,6 +51,7 @@ func (sn *SFNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOu
 		out.Mtime = uint64(stat.ModTime().Unix())
 		out.Ctime = uint64(stat.ModTime().Unix())
 		out.Size = uint64(stat.Size())
+		out.Ctimensec = uint32(stat.ModTime().Unix())
 		// 正常な場合はfuse.OKを返す
 		return fs.ToErrno(nil)
 	}
@@ -259,12 +260,8 @@ var _ fs.NodeReader = (*SFNode)(nil)
 
 func (sn *SFNode) Read(ctx context.Context, f fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	logrus.WithField("Func", "Read").Debug("offset ", off)
-	var file *sftp.File
-	if f != nil {
-		file = f.(*sftp.File)
-		logrus.Debug("READ: FileHandle was not empty: ", file)
-
-	} else {
+	file, ok := f.(*sftp.File)
+	if !ok {
 		var err error
 		file, err = sn.sftp.Open(sn.RemotePath())
 		if err != nil {
@@ -284,11 +281,8 @@ var _ fs.NodeWriter = (*SFNode)(nil)
 
 func (sn *SFNode) Write(ctx context.Context, f fs.FileHandle, data []byte, off int64) (written uint32, errno syscall.Errno) {
 	logrus.WithField("Func", "Write").Debug(sn.RemotePath())
-	var file *sftp.File
-	if f != nil {
-		logrus.Debug("READ: FileHandle was not empty")
-		file = f.(*sftp.File)
-	} else {
+	file, ok := f.(*sftp.File)
+	if !ok {
 		var err error
 		file, err = sn.sftp.Open(sn.RemotePath())
 		if err != nil {
