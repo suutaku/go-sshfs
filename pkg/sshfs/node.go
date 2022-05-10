@@ -190,7 +190,7 @@ func (sn *SFNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fus
 		logrus.Debug(p)
 		return nil, 0, fs.ToErrno(err)
 	}
-	return f, fuse.FOPEN_KEEP_CACHE | fuse.FOPEN_CACHE_DIR | fuse.FOPEN_STREAM, fs.ToErrno(nil)
+	return f, fuse.FOPEN_DIRECT_IO, fs.ToErrno(nil)
 }
 
 func (sn *SFNode) Opendir(ctx context.Context) syscall.Errno {
