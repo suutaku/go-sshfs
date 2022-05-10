@@ -93,7 +93,7 @@ func (sn *SFNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 				stable.Mode = fuse.S_IFREG
 			}
 			childnode = sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), stable)
-			sn.AddChild(f.Name(), childnode, false)
+			sn.AddChild(f.Name(), childnode, true)
 		}
 		d := fuse.DirEntry{
 			Name: f.Name(),
@@ -130,7 +130,7 @@ func (sn *SFNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (
 		stable.Mode = fuse.S_IFREG
 	}
 	cnode = sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), stable)
-	sn.AddChild(f.Name(), cnode, false)
+	sn.AddChild(f.Name(), cnode, true)
 	return cnode, fs.ToErrno(nil)
 }
 
@@ -165,7 +165,7 @@ func (sn *SFNode) Mkdir(ctx context.Context, name string, mode uint32, out *fuse
 	newwNode := sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), fs.StableAttr{Mode: mode})
 	out.Mode = newwNode.Mode()
 	out.Ino = newwNode.StableAttr().Ino
-	sn.AddChild(name, newwNode, false)
+	sn.AddChild(name, newwNode, true)
 	p := sn.RemotePath()
 	p = path.Join(p, name)
 	err := sn.sftp.Mkdir(p)
@@ -202,7 +202,7 @@ func (sn *SFNode) Opendir(ctx context.Context) syscall.Errno {
 	}
 
 	cnode := sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), fs.StableAttr{Mode: sn.StableAttr().Mode})
-	sn.AddChild(file.Name(), cnode, false)
+	sn.AddChild(file.Name(), cnode, true)
 
 	return fs.ToErrno(nil)
 }
@@ -252,7 +252,7 @@ func (sn *SFNode) Create(ctx context.Context, name string, flags uint32, mode ui
 		stable.Mode = fuse.S_IFREG
 	}
 	newNode := sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), stable)
-	sn.AddChild(name, newNode, false)
+	sn.AddChild(name, newNode, true)
 	return newNode, newFile, 0, fs.ToErrno(err)
 }
 
@@ -260,10 +260,13 @@ var _ fs.NodeReader = (*SFNode)(nil)
 
 func (sn *SFNode) Read(ctx context.Context, f fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	logrus.WithField("Func", "Read").Debug("offset ", off)
-	// file, ok := f.(*sftp.File)
-	file, err := sn.sftp.Open(sn.RemotePath())
-	if err != nil {
-		return nil, fs.ToErrno(err)
+	file, ok := f.(*sftp.File)
+	if !ok {
+		var err error
+		file, err = sn.sftp.Open(sn.RemotePath())
+		if err != nil {
+			return nil, fs.ToErrno(err)
+		}
 	}
 
 	file.Seek(off, 0)
