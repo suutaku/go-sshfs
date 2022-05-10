@@ -260,13 +260,10 @@ var _ fs.NodeReader = (*SFNode)(nil)
 
 func (sn *SFNode) Read(ctx context.Context, f fs.FileHandle, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
 	logrus.WithField("Func", "Read").Debug("offset ", off)
-	file, ok := f.(*sftp.File)
-	if !ok {
-		var err error
-		file, err = sn.sftp.Open(sn.RemotePath())
-		if err != nil {
-			return nil, fs.ToErrno(err)
-		}
+	// file, ok := f.(*sftp.File)
+	file, err := sn.sftp.Open(sn.RemotePath())
+	if err != nil {
+		return nil, fs.ToErrno(err)
 	}
 
 	file.Seek(off, 0)
