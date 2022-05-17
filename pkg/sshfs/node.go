@@ -21,15 +21,15 @@ type SFNode struct {
 }
 
 func (sn *SFNode) Name() string {
-	return path.Base(sn.Path(nil))
+	return path.Base(sn.Path(sn.Root()))
 }
 
 func (sn *SFNode) LocalPath() string {
-	return sn.Path(nil)
+	return sn.Path(sn.Root())
 }
 
 func (sn *SFNode) RemotePath() string {
-	return path.Join(sn.rootPath, sn.Path(nil))
+	return path.Join(sn.rootPath, sn.Path(sn.Root()))
 }
 
 func NewSFNode(sftp *sftp.Client, root string) *SFNode {
@@ -44,14 +44,18 @@ var _ fs.NodeGetattrer = (*SFNode)(nil)
 
 func (sn *SFNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
 	// logrus.WithField("Func", "Getattr").Debug("call")
-	if f != nil {
-		fr := f.(*sftp.File)
+	fr, ok := f.(*sftp.File)
+	if ok {
 		stat, _ := fr.Stat()
 		out.Mode = uint32(stat.Mode())
-		out.Mtime = uint64(stat.ModTime().Unix())
+		// out.Mtime = uint64(stat.ModTime().Unix())
 		out.Ctime = uint64(stat.ModTime().Unix())
 		out.Size = uint64(stat.Size())
 		out.Ctimensec = uint32(stat.ModTime().Unix())
+		statT, ok := stat.Sys().(*sftp.FileStat)
+		if ok {
+			out.Atime = uint64(statT.Atime)
+		}
 		// 正常な場合はfuse.OKを返す
 		return fs.ToErrno(nil)
 	}
@@ -65,9 +69,9 @@ func (sn *SFNode) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOu
 		out.Atime = uint64(statT.Atime)
 	}
 	out.Mode = uint32(stat.Mode())
-	out.Mtime = uint64(stat.ModTime().Unix())
+	// out.Mtime = uint64(stat.ModTime().Unix())
 	out.Ctime = uint64(stat.ModTime().Unix())
-
+	out.Ctimensec = uint32(stat.ModTime().Unix())
 	out.Size = uint64(stat.Size())
 	// 正常な場合はfuse.OKを返す
 	return fs.ToErrno(nil)
@@ -93,7 +97,7 @@ func (sn *SFNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 				stable.Mode = fuse.S_IFREG
 			}
 			childnode = sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), stable)
-			sn.AddChild(f.Name(), childnode, true)
+			sn.AddChild(f.Name(), childnode, false)
 		}
 		d := fuse.DirEntry{
 			Name: f.Name(),
@@ -108,9 +112,10 @@ func (sn *SFNode) Readdir(ctx context.Context) (fs.DirStream, syscall.Errno) {
 var _ fs.NodeLookuper = (*SFNode)(nil)
 
 func (sn *SFNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
-	// logrus.WithField("Func", "Lookup").Debug(name)
+	logrus.WithField("Func", "Lookup").Debug(name)
 	cnode := sn.GetChild(name)
 	if cnode != nil { // Local exist
+		logrus.Warn(name, " already exist on local")
 		out.Attr.Mode = cnode.Mode()
 		return cnode, fs.ToErrno(nil)
 	}
@@ -123,7 +128,7 @@ func (sn *SFNode) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (
 	out.Attr.Mode = uint32(f.Mode())
 	out.Attr.Mtime = uint64(f.ModTime().Unix())
 	out.Attr.Ctime = uint64(f.ModTime().Unix())
-
+	out.Ctimensec = uint32(f.ModTime().Unix())
 	out.Attr.Size = uint64(f.Size())
 	stable := fs.StableAttr{Mode: fuse.S_IFDIR}
 	if !f.IsDir() {
@@ -185,24 +190,25 @@ var _ fs.NodeOpendirer = (*SFNode)(nil)
 func (sn *SFNode) Open(ctx context.Context, flags uint32) (fh fs.FileHandle, fuseFlags uint32, errno syscall.Errno) {
 	logrus.WithField("Func", "Open").Debug(flags)
 	p := sn.RemotePath()
+	logrus.Warn("remote path ", p)
 	f, err := sn.sftp.OpenFile(p, int(flags))
 	if err != nil {
 		logrus.Debug(p)
 		return nil, 0, fs.ToErrno(err)
 	}
-	return f, fuse.FOPEN_DIRECT_IO, fs.ToErrno(nil)
+	return f, fuse.FOPEN_DIRECT_IO | fuse.FOPEN_KEEP_CACHE, fs.ToErrno(nil)
 }
 
 func (sn *SFNode) Opendir(ctx context.Context) syscall.Errno {
-	// logrus.WithField("Func", "Opendir").Debug("call")
-	p := sn.RemotePath()
-	file, err := sn.sftp.Open(p)
-	if err != nil {
-		return fs.ToErrno(err)
-	}
+	logrus.WithField("Func", "Opendir").Debug("call")
+	// p := sn.RemotePath()
+	// file, err := sn.sftp.OpenFile(p, os.O_RDWR)
+	// if err != nil {
+	// 	return fs.ToErrno(err)
+	// }
 
-	cnode := sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), fs.StableAttr{Mode: sn.StableAttr().Mode})
-	sn.AddChild(file.Name(), cnode, true)
+	// cnode = sn.NewInode(ctx, NewSFNode(sn.sftp, sn.rootPath), fs.StableAttr{Mode: sn.StableAttr().Mode})
+	// sn.AddChild(file.Name(), cnode, true)
 
 	return fs.ToErrno(nil)
 }
@@ -210,7 +216,11 @@ func (sn *SFNode) Opendir(ctx context.Context) syscall.Errno {
 var _ fs.NodeAccesser = (*SFNode)(nil)
 
 func (sn *SFNode) Access(ctx context.Context, mask uint32) syscall.Errno {
-	// logrus.WithField("Func", "Access").Debug("call")
+	// logrus.WithField("Func", "Access").Debug("call ", mask)
+	// if sn.StableAttr().Mode == mask {
+	// 	return fs.ToErrno(nil)
+	// }
+
 	// p := sn.RemotePath()
 	// stat, err := sn.sftp.Stat(p)
 	// if err != nil {
@@ -272,7 +282,7 @@ func (sn *SFNode) Read(ctx context.Context, f fs.FileHandle, dest []byte, off in
 	file.Seek(off, 0)
 	n, err := file.Read(dest)
 	if err != nil {
-		return nil, fs.ToErrno(err)
+		logrus.Error(err)
 	}
 	return fuse.ReadResultData(dest[:n]), fs.OK
 }
@@ -291,19 +301,29 @@ func (sn *SFNode) Write(ctx context.Context, f fs.FileHandle, data []byte, off i
 	}
 	file.Seek(off, 0)
 	n, err := file.Write(data)
+	file.Sync()
+
 	return uint32(n), fs.ToErrno(err)
 }
 
 var _ fs.NodeFsyncer = (*SFNode)(nil)
 
 func (sn *SFNode) Fsync(ctx context.Context, f fs.FileHandle, flags uint32) syscall.Errno {
+	fr, ok := f.(*sftp.File)
+	if ok {
+		err := fr.Sync()
+		return fs.ToErrno(err)
+	}
 	return fs.ToErrno(nil)
 }
 
 var _ fs.NodeReleaser = (*SFNode)(nil)
 
 func (sn *SFNode) Release(ctx context.Context, f fs.FileHandle) syscall.Errno {
-	fr := f.(*sftp.File)
+	fr, ok := f.(*sftp.File)
+	if !ok {
+		return syscall.Errno(fuse.EBUSY)
+	}
 	err := fr.Close()
 	return fs.ToErrno(err)
 }
@@ -316,12 +336,11 @@ func (sn *SFNode) Rename(ctx context.Context, name string, newParent fs.InodeEmb
 	stable := sn.GetChild(name).StableAttr()
 	sn.RmChild(name)
 	newNode := sn.NewInode(ctx, newParent, stable)
-	sn.AddChild(newName, newNode, true)
+	//sn.AddChild(newName, newNode, true)
+	newParent.EmbeddedInode().AddChild(newName, newNode, true)
 
 	err := sn.sftp.Rename(p1, p2)
-	if err != nil {
-		return fs.ToErrno(err)
-	}
+	logrus.Error(err, p1, p2)
 	return fs.ToErrno(err)
 }
 
