@@ -333,14 +333,13 @@ var _ fs.NodeRenamer = (*SFNode)(nil)
 func (sn *SFNode) Rename(ctx context.Context, name string, newParent fs.InodeEmbedder, newName string, flags uint32) syscall.Errno {
 	p1 := path.Join(sn.RemotePath(), name)
 	p2 := path.Join(sn.RemotePath(), newName)
-	stable := sn.GetChild(name).StableAttr()
-	sn.RmChild(name)
-	newNode := sn.NewInode(ctx, newParent, stable)
-	//sn.AddChild(newName, newNode, true)
-	newParent.EmbeddedInode().AddChild(newName, newNode, true)
+	// stable := sn.GetChild(name).StableAttr()
+	// sn.RmChild(name)
+	// newNode := sn.NewInode(ctx, newParent, stable)
+	// //sn.AddChild(newName, newNode, true)
+	// newParent.EmbeddedInode().AddChild(newName, newNode, true)
 
-	err := sn.sftp.Rename(p1, p2)
-	logrus.Error(err, p1, p2)
+	err := sn.sftp.PosixRename(p1, p2)
 	return fs.ToErrno(err)
 }
 
